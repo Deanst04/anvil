@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: anvil-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: anvil_user
+      POSTGRES_PASSWORD: anvil_password
+      POSTGRES_DB: anvil_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
