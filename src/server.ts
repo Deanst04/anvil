@@ -1,10 +1,12 @@
 import app from "./app";
-import "dotenv/config";
-import startEventWorker from "./workers/event.worker";
+import { env } from "./config/env";
+import {
+  recoverManyStuckProcessingEvents,
+  startEventWorkerPool,
+} from "./workers/event.worker";
 
-const PORT = Number(process.env.PORT) || 3000;
-
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  startEventWorker();
+app.listen(env.PORT, () => {
+  console.log(`Server is running on port ${env.PORT}`);
+  startEventWorkerPool(env.EVENT_WORKER_COUNT);
+  recoverManyStuckProcessingEvents();
 });
