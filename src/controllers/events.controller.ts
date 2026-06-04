@@ -39,14 +39,15 @@ export async function getEventsStats(req: Request, res: Response) {
       total: 0,
     } as EventStatsResult,
   );
-  const results = stats.reduce<EventStatsResult>((acc, { status, _count: { _all } }) => {
-    const current = { ...acc };
-    if (!current[status]) {
+  const results = stats.reduce<EventStatsResult>(
+    (acc, { status, _count: { _all } }) => {
+      const current = { ...acc };
       current[status] = _all;
       current.total += _all;
-    }
-    return current;
-  }, initialState);
+      return current;
+    },
+    initialState,
+  );
   res.status(200).json({
     success: true,
     results,
