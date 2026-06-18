@@ -99,7 +99,8 @@ temp/
 # Runtime uploads
 # ==========================================
 uploads/
-storage/
+storage/temp/*
+!storage/temp/.gitkeep
 data/
 
 # ==========================================
