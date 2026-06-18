@@ -1,9 +1,20 @@
 import axios from "axios";
 import prisma from "../src/infrastructure/prisma";
 import { sleep } from "../src/workers/event.worker";
+import { env } from "../src/config/env";
+
+const TOTAL_EVENTS = 100;
+
+const benchmarkConfig = {
+  totalEvents: TOTAL_EVENTS,
+  workerCount: env.EVENT_WORKER_COUNT,
+  workerIntervalMs: env.EVENT_WORKER_INTERVAL_MS,
+  processingTimeMs: env.EVENT_PROCESSING_TIME_MS,
+  stuckTimeoutMs: env.EVENT_STUCK_TIMEOUT_MS,
+  maxClaimAttempts: env.EVENT_MAX_CLAIM_ATTEMPTS,
+};
 
 async function main() {
-  const TOTAL_EVENTS = 100;
   const API_URL = "http://localhost:3000";
   await prisma.event.deleteMany();
   try {
@@ -36,9 +47,9 @@ async function main() {
     }
     const endTime = Date.now();
     const results = {
-      TOTAL_EVENTS,
-      Duration: (`${((endTime - startTime) / 1000)} seconds`),
-      stats: stats.data.results,
+      benchmark: { ...benchmarkConfig },
+      Duration: `${(endTime - startTime) / 1000} seconds`,
+      stats: { ...stats.data.results },
     };
     console.log("Benchmark completed:", results);
   } catch (e) {
