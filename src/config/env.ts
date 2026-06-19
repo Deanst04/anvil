@@ -29,6 +29,14 @@ const envSchema = z.object({
   EVENT_PROCESSING_TIME_MS: z.coerce.number().int().min(100).default(4000),
   EVENT_STUCK_TIMEOUT_MS: z.coerce.number().int().min(1000).default(10000),
   EVENT_MAX_CLAIM_ATTEMPTS: z.coerce.number().int().min(1).default(3),
+  MINIO_ENDPOINT: z.string().default("localhost"),
+  MINIO_PORT: z.coerce.number().int().default(9000),
+  MINIO_ACCESS_KEY: z.string(),
+  MINIO_SECRET_KEY: z.string(),
+  MINIO_BUCKET_NAME: z.string(),
+  MINIO_USE_SSL: z
+    .preprocess((bool) => bool === "true", z.boolean())
+    .default(false),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

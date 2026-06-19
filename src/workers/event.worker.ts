@@ -1,5 +1,8 @@
 import prisma from "../infrastructure/prisma";
 import { env } from "../config/env";
+import uploadFileService from "../services/files/file-storage.service";
+import { unlink } from "fs/promises";
+import { fileUploadPayloadSchema } from "../validations/file-upload-payload.validation";
 
 export const sleep = (ms: number): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -88,8 +91,10 @@ async function claimNextPendingEvent() {
 }
 
 async function processEvent(eventId: string, eventWorker: string) {
-  console.log(`${eventWorker} - event ${eventId} is currently PROCESSING ${new Date()}`);
-  await sleep(env.EVENT_PROCESSING_TIME_MS);
+  console.log(
+    `${eventWorker} - event ${eventId} is currently PROCESSING ${new Date()}`,
+  );
+  // await sleep(env.EVENT_PROCESSING_TIME_MS);
   const eventById = await prisma.event.findUnique({
     where: {
       id: eventId,
@@ -97,6 +102,40 @@ async function processEvent(eventId: string, eventWorker: string) {
   });
   if (!eventById) {
     return;
+  }
+  switch (eventById.type) {
+    case "file.upload": {
+      const result = fileUploadPayloadSchema.safeParse(eventById.payload);
+      if (!result.success) {
+        await prisma.event.updateMany({
+          where: {
+            id: eventId,
+            status: "PROCESSING",
+          },
+          data: {
+            status: "FAILED",
+          },
+        });
+        return;
+      }
+      const payload = result.data;
+      const results = await uploadFileService(
+        payload.tempPath,
+        payload.objectKey,
+      );
+      try {
+        await unlink(payload.tempPath);
+      } catch (e) {
+        console.error("Failed to delete temporary uploaded file", {
+          tempFile: payload.tempPath,
+          objectKey: results.objectKey,
+          bucket: results.bucket,
+          error: e,
+        });
+      }
+      break;
+    }
+    default:
   }
   if (eventById.status === "PROCESSING") {
     await prisma.event.updateMany({
