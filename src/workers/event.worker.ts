@@ -38,26 +38,53 @@ export function recoverManyStuckProcessingEvents() {
     try {
       isRecovering = true;
       const cutoffDate = new Date(Date.now() - env.EVENT_STUCK_TIMEOUT_MS);
-      const events = await prisma.event.updateMany({
+      const recoveredEvents = await prisma.event.updateMany({
         where: {
           status: "PROCESSING",
           updatedAt: {
             lt: cutoffDate,
+          },
+          recoveryAttempts: {
+            lt: env.EVENT_MAX_RECOVERY_ATTEMPTS,
+          },
+        },
+        data: {
+          status: "PENDING",
+          recoveryAttempts: {
+            increment: 1,
+          },
+        },
+      });
+      const failedEvents = await prisma.event.updateMany({
+        where: {
+          status: "PROCESSING",
+          updatedAt: {
+            lt: cutoffDate,
+          },
+          recoveryAttempts: {
+            gte: env.EVENT_MAX_RECOVERY_ATTEMPTS,
           },
         },
         data: {
           status: "FAILED",
         },
       });
-      if (events.count > 0) {
-        console.log(`${events.count} events failed at ${new Date(Date.now())}`);
+      if (recoveredEvents.count > 0) {
+        console.log(
+          `${recoveredEvents.count} events recovered at ${new Date(Date.now())}`,
+        );
+      }
+      if (failedEvents.count > 0) {
+        console.log(
+          `${failedEvents.count} events failed at ${new Date(Date.now())}`,
+        );
       }
     } catch (e) {
       console.error("Event recover worker failed:", e);
     } finally {
       isRecovering = false;
     }
-  }, 10000);
+  }, env.EVENT_STUCK_TIMEOUT_MS);
 }
 
 async function claimNextPendingEvent() {
