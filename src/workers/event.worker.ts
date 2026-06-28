@@ -3,6 +3,11 @@ import { env } from "../config/env";
 import uploadFileService from "../services/files/file-storage.service";
 import { unlink } from "fs/promises";
 import { fileUploadPayloadSchema } from "../validations/file-upload-payload.validation";
+import notificationService, {
+  CreateFileUploadCompletedNotificationEventInput,
+} from "../services/notifications/notification-event.service";
+import { notificationSendPayloadSchema } from "../validations/notification-event.validation";
+import { sendTelegramNotification } from "../infrastructure/telegram";
 
 export const sleep = (ms: number): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -150,33 +155,108 @@ async function processEvent(eventId: string, eventWorker: string) {
         payload.tempPath,
         payload.objectKey,
       );
+      let completedEvent;
+      try {
+        completedEvent = await prisma.event.updateMany({
+          where: {
+            id: eventId,
+            status: "PROCESSING",
+          },
+          data: {
+            status: "COMPLETED",
+          },
+        });
+      } catch (e) {
+        console.error(
+          `[File Upload] Failed to mark event "${eventId}" as COMPLETED.`,
+          e,
+        );
+        throw e;
+      }
+
+      if (completedEvent.count === 1) {
+        const notificationPayload: CreateFileUploadCompletedNotificationEventInput =
+          {
+            sourceEventId: eventId,
+            bucket: results.bucket,
+            objectKey: results.objectKey,
+            originalName: payload.originalName,
+            uploadedAt: results.uploadedAt,
+          };
+
+        console.log(
+          `${eventWorker} - event ${eventId} is COMPLETED ${new Date()}`,
+        );
+
+        try {
+          await notificationService(notificationPayload);
+        } catch (e) {
+          console.error(
+            `[Notification] Failed to create notification event for source event "${eventId}".`,
+            e,
+          );
+        }
+      }
+
       try {
         await unlink(payload.tempPath);
       } catch (e) {
-        console.error("Failed to delete temporary uploaded file", {
-          tempFile: payload.tempPath,
-          objectKey: results.objectKey,
-          bucket: results.bucket,
-          error: e,
-        });
+        console.error(
+          "[File Upload] Failed to delete temporary uploaded file.",
+          {
+            tempFile: payload.tempPath,
+            objectKey: results.objectKey,
+            bucket: results.bucket,
+            error: e,
+          },
+        );
       }
-      break;
+      return;
+    }
+    case "notification.send": {
+      const result = notificationSendPayloadSchema.safeParse(eventById.payload);
+      if (!result.success) {
+        await prisma.event.updateMany({
+          where: {
+            id: eventById.id,
+            status: "PROCESSING",
+          },
+          data: {
+            status: "FAILED",
+          },
+        });
+        return;
+      }
+      await sendTelegramNotification(result.data);
+      await prisma.event.updateMany({
+        where: {
+          id: eventById.id,
+          status: "PROCESSING",
+        },
+        data: {
+          status: "COMPLETED",
+        },
+      });
+      console.log(
+        `${eventWorker} - event ${eventById.id} is COMPLETED ${new Date()}`,
+      );
+      return;
     }
     default:
   }
-  if (eventById.status === "PROCESSING") {
-    await prisma.event.updateMany({
-      where: {
-        id: eventId,
-        status: "PROCESSING",
-      },
-      data: {
-        status: "COMPLETED",
-      },
-    });
-    console.log(`${eventWorker} - event ${eventId} is COMPLETED ${new Date()}`);
-  }
-  return;
+  // if (eventById.status === "PROCESSING") {
+  //   await prisma.event.updateMany({
+  //     where: {
+  //       id: eventId,
+  //       status: "PROCESSING",
+  //     },
+  //     data: {
+  //       status: "COMPLETED",
+  //     },
+  //   });
+  //   console.log(`${eventWorker} - event ${eventId} is COMPLETED ${new Date()}`);
+  // }
+  // return;
 }
 
 export function startEventWorkerPool(workerCount: number) {

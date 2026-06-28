@@ -38,6 +38,8 @@ const envSchema = z.object({
   MINIO_USE_SSL: z
     .preprocess((bool) => bool === "true", z.boolean())
     .default(false),
+  TELEGRAM_BOT_TOKEN: z.string().min(1),
+  TELEGRAM_CHAT_ID: z.string().min(1),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
