@@ -9,4 +9,20 @@ const minio = new Client({
   secretKey: env.MINIO_SECRET_KEY,
 });
 
+export async function ensureBucketExists() {
+  const bucketName = env.MINIO_BUCKET_NAME;
+  try {
+    const bucketExists = await minio.bucketExists(bucketName);
+    if (bucketExists) {
+      console.log(`[MinIO] Bucket "${bucketName}" already exists.`);
+      return;
+    }
+    await minio.makeBucket(bucketName);
+    console.log(`[MinIO] Created bucket "${bucketName}".`);
+  } catch (e) {
+    console.error(`[MinIO] Failed to initialize bucket "${bucketName}".`, e);
+    throw e;
+  }
+}
+
 export default minio;
