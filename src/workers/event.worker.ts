@@ -8,6 +8,7 @@ import notificationService, {
 } from "../services/notifications/notification-event.service";
 import { notificationSendPayloadSchema } from "../validations/notification-event.validation";
 import { sendTelegramNotification } from "../infrastructure/telegram";
+import { sendEmailNotification } from "../infrastructure/email";
 
 export const sleep = (ms: number): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -177,11 +178,20 @@ async function processEvent(eventId: string, eventWorker: string) {
       if (completedEvent.count === 1) {
         const notificationPayload: CreateFileUploadCompletedNotificationEventInput =
           {
+            provider: env.DEFAULT_NOTIFICATION_PROVIDER,
             sourceEventId: eventId,
             bucket: results.bucket,
             objectKey: results.objectKey,
             originalName: payload.originalName,
             uploadedAt: results.uploadedAt,
+            attachments: [
+              {
+                type: "file",
+                url: results.publicUrl,
+                fileName: payload.originalName,
+                mimeType: payload.mimeType,
+              },
+            ],
           };
 
         console.log(
@@ -227,7 +237,16 @@ async function processEvent(eventId: string, eventWorker: string) {
         });
         return;
       }
-      await sendTelegramNotification(result.data);
+      const payload = result.data;
+      if (payload.provider === "telegram") {
+        await sendTelegramNotification(payload);
+      } else if (payload.provider === "email") {
+        await sendEmailNotification(payload);
+      } else {
+        throw new Error(
+          `Unsupported notification provider: ${payload.provider}`,
+        );
+      }
       await prisma.event.updateMany({
         where: {
           id: eventById.id,

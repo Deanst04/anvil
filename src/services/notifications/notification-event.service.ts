@@ -1,4 +1,5 @@
 import {
+  NotificationAttachment,
   NotificationSendPayload,
   notificationSendPayloadSchema,
 } from "../../validations/notification-event.validation";
@@ -6,18 +7,20 @@ import prisma from "../../infrastructure/prisma";
 import z from "zod";
 
 export type CreateFileUploadCompletedNotificationEventInput = {
+  provider: "telegram" | "email";
   sourceEventId: string;
   bucket: string;
   objectKey: string;
   originalName: string;
   uploadedAt: string;
+  attachments: NotificationAttachment[];
 };
 
 export default async function createFileUploadCompletedNotificationEvent(
   file: CreateFileUploadCompletedNotificationEventInput,
 ) {
   const payload: NotificationSendPayload = {
-    provider: "telegram",
+    provider: file.provider,
     kind: "file.upload.completed",
     title: "File upload completed",
     message: `File "${file.originalName}" was uploaded successfully.`,
@@ -28,6 +31,7 @@ export default async function createFileUploadCompletedNotificationEvent(
       originalName: file.originalName,
       uploadedAt: file.uploadedAt,
     },
+    attachments: file.attachments,
   };
   const result = notificationSendPayloadSchema.safeParse(payload);
   if (!result.success) {

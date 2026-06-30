@@ -6,19 +6,41 @@ export async function sendTelegramNotification(
   payload: NotificationSendPayload,
 ) {
   const telegramUrl = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
-  const text = `
-🔨 Anvil Notifications
 
-✅ File Upload Completed
+  const attachmentsText = payload.attachments.length
+    ? payload.attachments
+        .map((file, index) => {
+          return [
+            `Attachment #${index + 1}`,
+            `📄 File: ${file.fileName}`,
+            file.mimeType ? `🧩 Type: ${file.mimeType}` : undefined,
+            "🔗 Open file:",
+            file.url,
+          ]
+            .filter(Boolean)
+            .join("\n");
+        })
+        .join("\n\n")
+    : "No attachments";
 
-📄 File: ${payload.metadata.originalName}
+  const text = [
+    "🔨 Anvil Notification",
+    "",
+    `📌 ${payload.title}`,
+    "",
+    "📝 Message",
+    payload.message,
+    "",
+    `📎 Attachments (${payload.attachments.length})`,
+    attachmentsText,
+    "",
+    "📊 Metadata",
+    `• Event ID: ${payload.metadata.sourceEventId}`,
+    `• Bucket: ${payload.metadata.bucket}`,
+    `• Object Key: ${payload.metadata.objectKey}`,
+    `• Uploaded At: ${payload.metadata.uploadedAt}`,
+  ].join("\n");
 
-🪣 Bucket: ${payload.metadata.bucket}
-
-🆔 Object Key: ${payload.metadata.objectKey}
-
-🕒 Uploaded At: ${payload.metadata.uploadedAt}
-  `;
   try {
     await axios.post(telegramUrl, {
       chat_id: env.TELEGRAM_CHAT_ID,

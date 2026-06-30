@@ -40,6 +40,18 @@ const envSchema = z.object({
     .default(false),
   TELEGRAM_BOT_TOKEN: z.string().min(1),
   TELEGRAM_CHAT_ID: z.string().min(1),
+  EMAIL_HOST: z.string().min(1),
+  EMAIL_PORT: z.coerce.number().int().positive(),
+  EMAIL_SECURE: z
+    .preprocess((bool) => bool === "true", z.boolean())
+    .default(false),
+  EMAIL_USER: z.email(),
+  EMAIL_PASSWORD: z.string().min(1),
+  EMAIL_FROM: z.email(),
+  EMAIL_TO: z.email(),
+  DEFAULT_NOTIFICATION_PROVIDER: z
+    .enum(["telegram", "email"])
+    .default("telegram"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
